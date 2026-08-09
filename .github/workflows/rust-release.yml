@@ -192,33 +192,9 @@ jobs:
 
       - if: ${{ matrix.target == 'loongarch64-unknown-linux-gnu' }}
         name: Install LoongArch64 GNU cross-compile toolchain
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Ubuntu 24.04 ships LoongArch64 cross-toolchain and loong64
-          # libraries (libcap for bwrap) in its official archive.
-          sudo dpkg --add-architecture loong64
-          sudo apt-get update -y
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            gcc-13-loongarch64-linux-gnu \
-            g++-13-loongarch64-linux-gnu \
-            binutils-loongarch64-linux-gnu \
-            libcap-dev:loong64
-
-          # Point cc / cmake / cargo / pkg-config at the LoongArch64 toolchain.
-          echo "CC_loongarch64_unknown_linux_gnu=loongarch64-linux-gnu-gcc-13" >> "$GITHUB_ENV"
-          echo "CXX_loongarch64_unknown_linux_gnu=loongarch64-linux-gnu-g++-13" >> "$GITHUB_ENV"
-          echo "CARGO_TARGET_LOONGARCH64_UNKNOWN_LINUX_GNU_LINKER=loongarch64-linux-gnu-gcc-13" >> "$GITHUB_ENV"
-          echo "CMAKE_C_COMPILER=loongarch64-linux-gnu-gcc-13" >> "$GITHUB_ENV"
-          echo "CMAKE_CXX_COMPILER=loongarch64-linux-gnu-g++-13" >> "$GITHUB_ENV"
-          # The host strip/objcopy may not understand loongarch64 objects.
-          echo "STRIP=loongarch64-linux-gnu-strip" >> "$GITHUB_ENV"
-          echo "OBJCOPY=loongarch64-linux-gnu-objcopy" >> "$GITHUB_ENV"
-          echo "CFLAGS_loongarch64_unknown_linux_gnu=-pthread" >> "$GITHUB_ENV"
-          echo "CXXFLAGS_loongarch64_unknown_linux_gnu=-pthread" >> "$GITHUB_ENV"
-          # bwrap links against the loong64 libcap from the cross architecture.
-          echo "PKG_CONFIG_ALLOW_CROSS=1" >> "$GITHUB_ENV"
-          echo "PKG_CONFIG_LIBDIR_loongarch64_unknown_linux_gnu=/usr/lib/loongarch64-linux-gnu/pkgconfig" >> "$GITHUB_ENV"
+        env:
+          TARGET: ${{ matrix.target }}
+        run: bash "${GITHUB_WORKSPACE}/.github/scripts/install-loongarch64-build-tools.sh"
 
       - if: ${{ matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'}}
         name: Use hermetic Cargo home (musl)
