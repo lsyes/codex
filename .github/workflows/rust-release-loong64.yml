@@ -1,0 +1,136 @@
+# Branch CI for LoongArch64 cross-compilation.
+#
+# The official rust-release workflow is tag-triggered and requires
+# self-hosted runners and signing secrets, so LoongArch64 cross-builds are
+# validated here on every push to the loong64 branch (and manually via
+# workflow_dispatch). It mirrors the rust-release build path: same toolchain
+# version, same target, same rusty_v8 mirror, same bwrap digest embedding.
+name: rust-release-loong64
+
+on:
+  push:
+    branches:
+      - "v0.146.1-loong64"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  build-loong64:
+    name: Cross-compile LoongArch64
+    runs-on: ubuntu-24.04
+    # Release-profile cross-builds (aws-lc-sys, ...) are slow on 4-core
+    # hosted runners; leave headroom.
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    env:
+      # Use the git CLI instead of Cargo's libgit2 path for git dependencies.
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    defaults:
+      run:
+        working-directory: codex-rs
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install LoongArch64 GNU cross-compile toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Ubuntu 24.04 ships LoongArch64 cross-toolchain and loong64
+          # libraries (libcap for bwrap) in its official archive.
+          sudo dpkg --add-architecture loong64
+          sudo apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            gcc-13-loongarch64-linux-gnu \
+            g++-13-loongarch64-linux-gnu \
+            binutils-loongarch64-linux-gnu \
+            libcap-dev:loong64
+
+          # Point cc / cmake / cargo / pkg-config at the LoongArch64 toolchain.
+          echo "CC_loongarch64_unknown_linux_gnu=loongarch64-linux-gnu-gcc-13" >> "$GITHUB_ENV"
+          echo "CXX_loongarch64_unknown_linux_gnu=loongarch64-linux-gnu-g++-13" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_LOONGARCH64_UNKNOWN_LINUX_GNU_LINKER=loongarch64-linux-gnu-gcc-13" >> "$GITHUB_ENV"
+          echo "CMAKE_C_COMPILER=loongarch64-linux-gnu-gcc-13" >> "$GITHUB_ENV"
+          echo "CMAKE_CXX_COMPILER=loongarch64-linux-gnu-g++-13" >> "$GITHUB_ENV"
+          # The host strip/objcopy may not understand loongarch64 objects.
+          echo "STRIP=loongarch64-linux-gnu-strip" >> "$GITHUB_ENV"
+          echo "OBJCOPY=loongarch64-linux-gnu-objcopy" >> "$GITHUB_ENV"
+          echo "CFLAGS_loongarch64_unknown_linux_gnu=-pthread" >> "$GITHUB_ENV"
+          echo "CXXFLAGS_loongarch64_unknown_linux_gnu=-pthread" >> "$GITHUB_ENV"
+          # bwrap links against the loong64 libcap from the cross architecture.
+          echo "PKG_CONFIG_ALLOW_CROSS=1" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_LIBDIR_loongarch64_unknown_linux_gnu=/usr/lib/loongarch64-linux-gnu/pkgconfig" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
+        with:
+          targets: loongarch64-unknown-linux-gnu
+
+      - name: Configure rusty_v8 artifact overrides
+        uses: ./.github/actions/setup-rusty-v8
+        env:
+          # Community rusty_v8 build for LoongArch64; see
+          # https://github.com/phorcys/rusty_v8/releases/tag/v149.2.0
+          RUSTY_V8_MIRROR: https://github.com/phorcys/rusty_v8/releases/download
+        with:
+          target: loongarch64-unknown-linux-gnu
+
+      - name: Build bwrap and export digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="loongarch64-unknown-linux-gnu"
+          cargo build --target "$target" --release --timings --bin bwrap
+
+          bwrap_path="target/${target}/release/bwrap"
+          if [[ ! -f "$bwrap_path" ]]; then
+            echo "bwrap binary ${bwrap_path} not found"
+            exit 1
+          fi
+
+          # Codex embeds this digest at build time and verifies the bundled
+          # bwrap resource before use. Strip bwrap before hashing so the digest
+          # covers the exact bytes that the release packages.
+          "${STRIP:-strip}" --strip-debug --strip-unneeded "$bwrap_path"
+          digest="$(sha256sum "$bwrap_path" | awk '{print $1}')"
+          echo "CODEX_BWRAP_SHA256=${digest}" >> "$GITHUB_ENV"
+          echo "Built bwrap ${bwrap_path} with sha256:${digest}"
+
+      - name: Cargo build (release)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --target loongarch64-unknown-linux-gnu --release --timings \
+            --bin codex \
+            --bin codex-code-mode-host \
+            --bin codex-responses-api-proxy
+
+      - name: Verify architectures
+        shell: bash
+        run: |
+          set -euo pipefail
+          for binary in codex codex-code-mode-host codex-responses-api-proxy bwrap; do
+            binary_path="target/loongarch64-unknown-linux-gnu/release/${binary}"
+            if [[ ! -f "$binary_path" ]]; then
+              echo "Missing binary ${binary_path}"
+              exit 1
+            fi
+            file "$binary_path"
+            loongarch64-linux-gnu-readelf -h "$binary_path" \
+              | awk '/Machine:/ {print $0}'
+          done
+
+      - name: Upload LoongArch64 artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: loongarch64-unknown-linux-gnu
+          path: |
+            codex-rs/target/loongarch64-unknown-linux-gnu/release/codex
+            codex-rs/target/loongarch64-unknown-linux-gnu/release/codex-code-mode-host
+            codex-rs/target/loongarch64-unknown-linux-gnu/release/codex-responses-api-proxy
+            codex-rs/target/loongarch64-unknown-linux-gnu/release/bwrap
+          if-no-files-found: error
