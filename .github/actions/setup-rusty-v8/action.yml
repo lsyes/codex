@@ -1,4 +1,4 @@
-name: setup-rusty-v8
+name: setup-rusty-v8-loong64
 description: Download and verify Codex-built rusty_v8 artifacts for Cargo builds.
 inputs:
   target:
