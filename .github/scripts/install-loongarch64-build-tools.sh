@@ -47,9 +47,16 @@ if [[ ! -f "${libcap_prefix}/lib/libcap.a" ]]; then
   # is a build-time host tool; compiling it with the cross compiler yields a
   # loongarch64 binary that cannot run on the x86_64 runner ("Exec format
   # error"). Build it with the host gcc instead.
+  #
+  # OBJCOPY defaults to $(CROSS_COMPILE)objcopy (Make.Rules), i.e. the host
+  # objcopy, which cannot read the loongarch64 "empty" binary when generating
+  # loader.txt for the shared library build. Use the cross objcopy from
+  # binutils-loongarch64-linux-gnu. AR/RANLIB stay host tools: ar archives are
+  # machine-independent.
   make -C "${libcap_source_dir}/libcap" -j"$(nproc)" \
     CC="${cc}" \
     BUILD_CC=gcc \
+    OBJCOPY="${toolchain_prefix}-objcopy" \
     AR=ar \
     RANLIB=ranlib
 
