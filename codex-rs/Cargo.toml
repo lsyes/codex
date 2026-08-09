@@ -386,7 +386,7 @@ rustls = { version = "0.23", default-features = false, features = [
 rustls-native-certs = "0.8.3"
 rustls-pki-types = "1.14.0"
 schemars = "0.8.22"
-seccompiler = { git = "https://github.com/lsyes/seccompiler.git"}
+seccompiler = { git = "https://github.com/lsyes/seccompiler.git", branch = "main" }
 semver = "1.0"
 sentry = "0.46.0"
 serde = { version = "1", features = ["rc"] }
