@@ -20,6 +20,7 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
   gcc-13-loongarch64-linux-gnu \
   g++-13-loongarch64-linux-gnu \
   binutils-loongarch64-linux-gnu \
+  lld \
   xz-utils
 
 libcap_version="2.75"
