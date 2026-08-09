@@ -29,6 +29,9 @@ jobs:
     env:
       # Use the git CLI instead of Cargo's libgit2 path for git dependencies.
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      # 参考 build-codex-loongarch64.sh 的做法
+      # 使用 clang + lld 和 medium code model 避免 B26 溢出
+      RUSTFLAGS: "-C code-model=medium -C linker=/usr/bin/clang -C link-arg=-fuse-ld=lld -C link-arg=-Wl,--relax"
     defaults:
       run:
         working-directory: codex-rs
@@ -58,6 +61,9 @@ jobs:
         run: |
           set -euo pipefail
           target="loongarch64-unknown-linux-gnu"
+          
+          export "CFLAGS_${target//-/_}"="-mcmodel=medium"
+          
           cargo build --target "$target" --release --timings --bin bwrap
 
           bwrap_path="target/${target}/release/bwrap"
@@ -78,7 +84,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo build --target loongarch64-unknown-linux-gnu --release --timings \
+          target="loongarch64-unknown-linux-gnu"
+          
+          export "CFLAGS_${target//-/_}"="-mcmodel=medium"
+          
+          cargo build --target "$target" --release --timings \
             --bin codex \
             --bin codex-code-mode-host \
             --bin codex-responses-api-proxy
