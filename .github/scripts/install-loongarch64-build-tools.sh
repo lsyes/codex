@@ -43,8 +43,13 @@ if [[ ! -f "${libcap_prefix}/lib/libcap.a" ]]; then
 
   tar -xJf "${libcap_tarball}" -C "${libcap_src_root}"
   libcap_source_dir="${libcap_src_root}/libcap-${libcap_version}"
+  # BUILD_CC defaults to CC (Make.Rules: BUILD_CC ?= $(CC)), but _makenames
+  # is a build-time host tool; compiling it with the cross compiler yields a
+  # loongarch64 binary that cannot run on the x86_64 runner ("Exec format
+  # error"). Build it with the host gcc instead.
   make -C "${libcap_source_dir}/libcap" -j"$(nproc)" \
     CC="${cc}" \
+    BUILD_CC=gcc \
     AR=ar \
     RANLIB=ranlib
 
