@@ -1,9 +1,13 @@
 name: setup-rusty-v8
-description: Download and verify Codex-built rusty_v8 artifacts for Cargo builds.
+description: Download and verify rusty_v8 artifacts for Cargo builds.
 inputs:
   target:
-    description: Rust target triple with Codex-built V8 release artifacts.
+    description: Rust target triple with rusty_v8 release artifacts.
     required: true
+  mirror:
+    description: Optional base URL of a community rusty_v8 mirror.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -12,15 +16,13 @@ runs:
       shell: bash
       env:
         TARGET: ${{ inputs.target }}
+        RUSTY_V8_MIRROR: ${{ inputs.mirror }}
       run: |
         set -euo pipefail
 
         version="$(python3 "${GITHUB_WORKSPACE}/.github/scripts/rusty_v8_bazel.py" resolved-v8-crate-version)"
-        release_tag="rusty-v8-v${version}"
-        base_url="https://github.com/openai/codex/releases/download/${release_tag}"
-        binding_dir="${RUNNER_TEMP}/rusty_v8"
-        
         profile="ptrcomp_sandbox_release"
+        binding_dir="${RUNNER_TEMP}/rusty_v8"
 
         if [[ "$TARGET" == *-pc-windows-msvc ]]; then
           archive_name="rusty_v8_${profile}_${TARGET}.lib.gz"
@@ -28,10 +30,32 @@ runs:
           archive_name="librusty_v8_${profile}_${TARGET}.a.gz"
         fi
         binding_name="src_binding_${profile}_${TARGET}.rs"
-        checksums_name="rusty_v8_${profile}_${TARGET}.sha256"
 
         archive_path="${binding_dir}/${archive_name}"
         binding_path="${binding_dir}/${binding_name}"
+        mkdir -p "${binding_dir}"
+
+        if [[ -n "${RUSTY_V8_MIRROR:-}" ]]; then
+          # Community mirrors such as phorcys/rusty_v8 tag LoongArch64 artifacts
+          # with the v8 crate version and publish a .sum digest instead of the
+          # Codex release manifest, so verify against that digest.
+          base_url="${RUSTY_V8_MIRROR}/v${version}"
+          checksums_name="src_binding_${profile}_${TARGET}.sum"
+          checksums_path="${binding_dir}/${checksums_name}"
+
+          curl -fsSL "${base_url}/${archive_name}" -o "${archive_path}"
+          curl -fsSL "${base_url}/${binding_name}" -o "${binding_path}"
+          curl -fsSL "${base_url}/${checksums_name}" -o "${checksums_path}"
+          (cd "${binding_dir}" && sha256sum -c "${checksums_name}")
+
+          echo "RUSTY_V8_ARCHIVE=${archive_path}" >> "${GITHUB_ENV}"
+          echo "RUSTY_V8_SRC_BINDING_PATH=${binding_path}" >> "${GITHUB_ENV}"
+          exit 0
+        fi
+
+        release_tag="rusty-v8-v${version}"
+        base_url="https://github.com/openai/codex/releases/download/${release_tag}"
+        checksums_name="rusty_v8_${profile}_${TARGET}.sha256"
         checksums_path="${binding_dir}/${checksums_name}"
         trusted_checksums="${GITHUB_WORKSPACE}/third_party/v8/rusty_v8_${version//./_}_release_manifests.sha256"
 
@@ -41,7 +65,6 @@ runs:
           checksum_command=(shasum -a 256 --check -)
         fi
 
-        mkdir -p "${binding_dir}"
         curl -fsSL "${base_url}/${checksums_name}" -o "${checksums_path}"
         # Check the original manifest bytes even when either checksum file uses CRLF.
         expected_manifest_checksum="$(grep -F "  ${checksums_name}" "${trusted_checksums}" | cut -d ' ' -f 1)"

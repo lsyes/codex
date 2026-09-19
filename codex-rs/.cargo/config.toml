@@ -9,3 +9,15 @@ rustflags = ["-C", "link-arg=/STACK:8388608", "-C", "link-arg=/arm64hazardfree"]
 
 [target.'cfg(all(windows, target_env = "gnu"))']
 rustflags = ["-C", "link-arg=-Wl,--stack,8388608"]
+
+# LoongArch64 release artifacts are cross-compiled with the loong64/cross-tools
+# GNU toolchain (see .github/scripts/install-loongarch64-build-tools.sh), which
+# exports CARGO_TARGET_LOONGARCH64_UNKNOWN_LINUX_GNU_LINKER for cross builds so
+# native loong64 builds keep using the host linker. The medium code model keeps
+# the prebuilt rusty_v8 static library within the +/-2GiB PC-relative branch
+# range, and --relax lets the bfd linker shrink calls where it can.
+[target.loongarch64-unknown-linux-gnu]
+rustflags = [
+    "-C", "code-model=medium",
+    "-C", "link-arg=-Wl,--relax",
+]

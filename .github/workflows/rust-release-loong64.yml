@@ -1,0 +1,134 @@
+# Cross-compile the LoongArch64 (loongarch64-unknown-linux-gnu) release
+# binaries on x86_64 GitHub-hosted runners.
+#
+# The toolchain comes from loong64/cross-tools (no Ubuntu loong64 packages and
+# no self-hosted loongarch64 runners), the prebuilt V8 static library comes from
+# the community phorcys/rusty_v8 mirror. Everything is built with the medium
+# code model so the prebuilt V8 archive stays within the +/-2GiB PC-relative
+# range of LoongArch64 branches.
+name: rust-release-loong64
+
+on:
+  push:
+    branches:
+      - "0.155.x-loong64"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  build-loong64:
+    name: Cross-compile LoongArch64
+    runs-on: ubuntu-24.04
+    # aws-lc-sys and V8 are slow to build in release mode on a 4-core runner.
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    env:
+      TARGET: loongarch64-unknown-linux-gnu
+      # Cargo's libgit2 backend is unreliable for git dependencies in CI.
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      # Community LoongArch64 rusty_v8 artifacts; see
+      # https://github.com/phorcys/rusty_v8/releases
+      RUSTY_V8_MIRROR: https://github.com/phorcys/rusty_v8/releases/download
+    defaults:
+      run:
+        working-directory: codex-rs
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install LoongArch64 cross-compile toolchain
+        shell: bash
+        run: bash "${GITHUB_WORKSPACE}/.github/scripts/install-loongarch64-build-tools.sh"
+
+      - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
+        with:
+          targets: loongarch64-unknown-linux-gnu
+
+      - name: Configure rusty_v8 artifact overrides
+        uses: ./.github/actions/setup-rusty-v8
+        with:
+          target: loongarch64-unknown-linux-gnu
+          mirror: https://github.com/phorcys/rusty_v8/releases/download
+
+      - name: Build bwrap and export digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="${TARGET}"
+
+          export "CFLAGS_${target//-/_}"="-mcmodel=medium"
+
+          cargo build --target "$target" --release --timings --bin bwrap
+
+          bwrap_path="target/${target}/release/bwrap"
+          if [[ ! -f "$bwrap_path" ]]; then
+            echo "bwrap binary ${bwrap_path} not found"
+            exit 1
+          fi
+
+          # Codex embeds this digest at build time and verifies the bundled
+          # bwrap resource before use. Strip bwrap before hashing so the digest
+          # covers the exact bytes that the release packages.
+          "${STRIP:-strip}" --strip-debug --strip-unneeded "$bwrap_path"
+          digest="$(sha256sum "$bwrap_path" | awk '{print $1}')"
+          echo "CODEX_BWRAP_SHA256=${digest}" >> "$GITHUB_ENV"
+          echo "Built bwrap ${bwrap_path} with sha256:${digest}"
+
+      - name: Cargo build (release)
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="${TARGET}"
+
+          export "CFLAGS_${target//-/_}"="-mcmodel=medium"
+
+          STABLE_GIT_COMMIT="$(git rev-parse HEAD)"
+          export STABLE_GIT_COMMIT
+
+          cargo build --target "$target" --release --timings \
+            --bin codex \
+            --bin codex-app-server \
+            --bin codex-code-mode-host \
+            --bin codex-responses-api-proxy
+
+      - name: Build ripgrep for LoongArch64
+        shell: bash
+        run: |
+          set -euo pipefail
+          # ripgrep ships no official loongarch64 binary, so cross-compile the
+          # pinned version that the package resources normally download.
+          cargo install ripgrep --version 15.2.0 --locked \
+            --target "${TARGET}" \
+            --root "${RUNNER_TEMP}/loongarch64-tools"
+
+      - name: Verify architectures
+        shell: bash
+        run: |
+          set -euo pipefail
+          for binary in codex codex-app-server codex-code-mode-host codex-responses-api-proxy bwrap; do
+            binary_path="target/${TARGET}/release/${binary}"
+            if [[ ! -f "$binary_path" ]]; then
+              echo "Missing binary ${binary_path}"
+              exit 1
+            fi
+            file "$binary_path"
+            loongarch64-unknown-linux-gnu-readelf -h "$binary_path" \
+              | awk '/Machine:/ {print $0}'
+          done
+
+      - name: Upload LoongArch64 artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: loongarch64-unknown-linux-gnu
+          path: |
+            codex-rs/target/loongarch64-unknown-linux-gnu/release/codex
+            codex-rs/target/loongarch64-unknown-linux-gnu/release/codex-app-server
+            codex-rs/target/loongarch64-unknown-linux-gnu/release/codex-code-mode-host
+            codex-rs/target/loongarch64-unknown-linux-gnu/release/codex-responses-api-proxy
+            codex-rs/target/loongarch64-unknown-linux-gnu/release/bwrap
+          if-no-files-found: error
