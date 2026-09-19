@@ -55,9 +55,11 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
   xz-utils
 
 if [[ ! -x "${toolchain_root}/bin/${toolchain_prefix}-gcc" ]]; then
+  mkdir -p "${tool_root}"
   sudo mkdir -p "${cross_tools_root}"
   archive="${tool_root}/${artifact}.tar.xz"
-  curl -fsSL "${download_url}" -o "${archive}"
+  curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors \
+    "${download_url}" -o "${archive}"
   sudo tar -xJf "${archive}" -C "${cross_tools_root}"
   rm -f "${archive}"
 fi
