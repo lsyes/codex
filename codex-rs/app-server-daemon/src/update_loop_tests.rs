@@ -24,7 +24,39 @@ use crate::UpdateStatus;
 use crate::managed_install::executable_identity;
 #[cfg(unix)]
 use crate::managed_install::executable_identity_from_reader;
-
+#[cfg(all(target_os = "linux", target_arch = "loongarch64"))]
+#[tokio::test]
+async fn loongarch_official_update_is_unsupported_without_starting_an_updater() {
+    let temp = tempfile::TempDir::new().expect("home");
+    let home = temp.path();
+    let state = home.join("app-server-daemon");
+    let binary = home.join("packages/app-server-daemon/current/bin/codex");
+    std::fs::create_dir_all(binary.parent().expect("bin directory")).expect("package");
+    codex_utils_cargo_bin::write_executable(&binary, "#!/bin/sh\necho codex-cli 0.162.1\n")
+        .expect("executable");
+    let daemon = crate::Daemon {
+        log_diagnostics: false,
+        socket_path: state.join("daemon.sock"),
+        pid_file: state.join("daemon.pid"),
+        update_pid_file: state.join("daemon-updater.pid"),
+        operation_lock_file: state.join("daemon.lock"),
+        settings_file: state.join("settings.json"),
+        managed_codex_bin: binary,
+    };
+    let factory = codex_http_client::HttpClientFactory::new(
+        codex_http_client::OutboundProxyPolicy::ReqwestDefault,
+    );
+    let output = super::request_manual_update(&daemon, factory)
+        .await
+        .expect("unsupported update");
+    assert_eq!(output.status, crate::UpdateStatus::Unsupported);
+    assert_eq!(output.installed_version.as_deref(), Some("0.162.1"));
+    assert!(output.message.contains("--from-cli"));
+    assert!(
+        !state.exists(),
+        "update must not start a worker or change daemon state"
+    );
+}
 #[tokio::test]
 async fn installer_fetch_uses_exact_url_and_preserves_bytes() {
     let script = b"#!/bin/sh\nprintf 'update bytes'\n".to_vec();
@@ -419,7 +451,10 @@ async fn cancelling_installer_stops_children_and_releases_fallback_lock() {
 
 #[cfg(unix)]
 fn manual_update_daemon(home: &TempDir) -> (Daemon, String) {
-    let target = if cfg!(target_os = "macos") {
+    // These shell fixtures model an official release, independently of the host CPU.
+    let target = if cfg!(target_arch = "loongarch64") {
+        "x86_64-unknown-linux-musl".to_string()
+    } else if cfg!(target_os = "macos") {
         format!("{}-apple-darwin", std::env::consts::ARCH)
     } else {
         format!("{}-unknown-linux-musl", std::env::consts::ARCH)

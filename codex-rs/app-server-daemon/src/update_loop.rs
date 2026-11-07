@@ -50,6 +50,12 @@ pub(crate) async fn request_manual_update(
     daemon: &Daemon,
     http_client_factory: HttpClientFactory,
 ) -> Result<crate::UpdateOutput> {
+    // The public installer does not publish LoongArch packages.
+    if cfg!(target_arch = "loongarch64") {
+        let mut output = manual_update::unsupported(daemon).await?;
+        output.message = "Official daemon updates are unavailable on LoongArch64; install a complete CLI package and use `codex app-server daemon update --from-cli`.".to_string();
+        return Ok(output);
+    }
     if daemon
         .pid_file
         .file_name()

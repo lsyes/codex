@@ -11,6 +11,20 @@ use pretty_assertions::assert_eq;
 use std::path::Path;
 use std::path::PathBuf;
 
+#[cfg(all(target_os = "linux", target_arch = "loongarch64"))]
+#[test]
+fn recognizes_loongarch_package_target() {
+    let expected = if cfg!(target_env = "gnu") {
+        "loongarch64-unknown-linux-gnu"
+    } else {
+        "loongarch64-unknown-linux-musl"
+    };
+    assert_eq!(
+        super::platform_target().expect("LoongArch target"),
+        expected
+    );
+}
+
 fn daemon(home: &std::path::Path) -> crate::Daemon {
     let state = home.join("app-server-daemon");
     crate::Daemon {

@@ -1,5 +1,25 @@
 use pretty_assertions::assert_eq;
 
+#[cfg(unix)]
+#[test]
+fn loongarch_packages_are_not_eligible_for_official_automatic_updates() {
+    for target in [
+        "loongarch64-unknown-linux-gnu",
+        "loongarch64-unknown-linux-musl",
+    ] {
+        let home = tempfile::TempDir::new().expect("home");
+        let root = home.path().join("packages/app-server-daemon");
+        let name = format!("0.162.1-{target}");
+        let release = root.join("releases").join(&name);
+        let binary = release.join("bin/codex");
+        std::fs::create_dir_all(binary.parent().expect("bin directory")).expect("package");
+        std::fs::write(&binary, b"codex").expect("binary");
+        std::os::unix::fs::symlink(&release, root.join("current")).expect("selection");
+        std::fs::write(root.join("auto-update-version"), name).expect("latest marker");
+        assert!(!super::is_stable_standalone_release(home.path(), &binary));
+    }
+}
+
 #[test]
 fn discovers_package_and_legacy_installs() {
     let home = tempfile::TempDir::new().expect("home");
