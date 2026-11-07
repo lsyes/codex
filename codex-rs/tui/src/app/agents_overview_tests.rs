@@ -947,7 +947,6 @@ async fn agents_overview_details_render_markdown() {
                 thread.id.clone(),
                 "turn".into(),
                 ThreadItemPayload::AgentMessage {
-                    moderation: None,
                     id: "answer".into(),
                     text: message.into(),
                     phase: None,
@@ -1101,7 +1100,6 @@ async fn agents_overview_reasoning_uses_existing_events_and_expires_with_attachm
             parent.id.clone(),
             "previous-turn".into(),
             ThreadItemPayload::AgentMessage {
-                moderation: None,
                 id: "answer".into(),
                 text: "Previous answer".into(),
                 phase: None,

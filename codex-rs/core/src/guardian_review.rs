@@ -11,6 +11,6 @@ pub use crate::mcp_tool_call::conversation_history::conversation_history_tools;
 #[derive(Debug, PartialEq, Eq)]
 pub struct GuardianReviewResult {
     pub call_id: String,
-    /// Absent when current policy or a remembered approval skips review.
+    /// Absent when exec policy skips approval.
     pub assessment: Option<codex_guardian_reviewer::GuardianAssessment>,
 }

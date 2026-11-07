@@ -659,7 +659,6 @@ pub(crate) async fn apply_bespoke_event_handling(
             tokio::spawn(async move {
                 on_file_change_request_approval_response(
                     item_id,
-                    event.turn_id,
                     pending_request_id,
                     rx,
                     conversation,
@@ -2015,7 +2014,6 @@ fn map_file_change_approval_decision(decision: FileChangeApprovalDecision) -> Re
 #[allow(clippy::too_many_arguments)]
 async fn on_file_change_request_approval_response(
     item_id: String,
-    turn_id: String,
     pending_request_id: RequestId,
     receiver: oneshot::Receiver<ClientRequestResult>,
     codex: Arc<CodexThread>,
@@ -2044,17 +2042,13 @@ async fn on_file_change_request_approval_response(
         }
     };
 
-    let op = match decision {
-        ReviewDecision::Abort => Op::CancelPatchApproval {
-            id: item_id,
-            turn_id,
-        },
-        decision => Op::PatchApproval {
+    if let Err(err) = codex
+        .submit(Op::PatchApproval {
             id: item_id,
             decision,
-        },
-    };
-    if let Err(err) = codex.submit(op).await {
+        })
+        .await
+    {
         error!("failed to submit PatchApproval: {err}");
     }
 }
@@ -3337,7 +3331,6 @@ mod tests {
             Event {
                 id: "turn-1".to_string(),
                 msg: EventMsg::ItemCompleted(ItemCompletedEvent {
-                    content_token_count: None,
                     thread_id: conversation_id,
                     turn_id: "turn-1".to_string(),
                     item: CoreTurnItem::SubAgentActivity(SubAgentActivityItem {
@@ -3510,11 +3503,9 @@ mod tests {
             state.track_current_turn_event(
                 &event_turn_id,
                 &EventMsg::ItemCompleted(ItemCompletedEvent {
-                    content_token_count: None,
                     thread_id: conversation_id,
                     turn_id: event_turn_id.clone(),
                     item: CoreTurnItem::AgentMessage(CoreAgentMessageItem {
-                        moderation: None,
                         id: "msg-1".to_string(),
                         content: vec![
                             CoreAgentMessageContent::Text {
@@ -3536,11 +3527,9 @@ mod tests {
             state.track_current_turn_event(
                 &event_turn_id,
                 &EventMsg::ItemCompleted(ItemCompletedEvent {
-                    content_token_count: None,
                     thread_id: conversation_id,
                     turn_id: event_turn_id.clone(),
                     item: CoreTurnItem::AgentMessage(CoreAgentMessageItem {
-                        moderation: None,
                         id: "msg-2".to_string(),
                         content: vec![CoreAgentMessageContent::Text {
                             text: "  ".to_string(),

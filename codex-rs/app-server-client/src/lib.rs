@@ -21,8 +21,6 @@
 //! unread notifications cannot prevent request responses from being delivered.
 
 mod cloud;
-pub mod cloud_backend;
-pub use codex_cloud_client::ProjectEnvironment;
 mod path;
 mod remote;
 mod remote_websocket;
@@ -30,7 +28,6 @@ pub use cloud::CloudClient;
 pub use cloud::CloudCommand;
 pub use cloud::CloudOperation;
 pub use cloud::CloudRequestHandle;
-pub use cloud::CloudUserMessageReceipt;
 mod server_request;
 pub use server_request::AppServerReplyHandle;
 
@@ -714,27 +711,6 @@ impl InProcessAppServerRequestHandle {
 }
 
 impl AppServerRequestHandle {
-    /// Starts a native cloud thread with host project metadata without adding wire fields.
-    pub async fn start_cloud_project_thread(
-        &self,
-        request_id: RequestId,
-        params: codex_app_server_protocol::ThreadStartParams,
-        project: codex_cloud_client::ProjectEnvironment,
-    ) -> Result<codex_app_server_protocol::ThreadStartResponse, TypedRequestError> {
-        let response = match self {
-            Self::Cloud(handle) => {
-                handle
-                    .start_project_thread(request_id, params, project)
-                    .await
-            }
-            Self::InProcess(_) | Self::Remote(_) => Err(IoError::new(
-                std::io::ErrorKind::Unsupported,
-                "Project checkout requires the native cloud transport.",
-            )),
-        };
-        decode_typed_response("thread/start", response)
-    }
-
     pub(crate) async fn resolve_server_request(
         &self,
         request_id: RequestId,
@@ -1168,7 +1144,6 @@ mod tests {
                 "thread".to_string(),
                 "turn".to_string(),
                 codex_app_server_protocol::ThreadItemPayload::AgentMessage {
-                    moderation: None,
                     id: "item".to_string(),
                     text: text.to_string(),
                     phase: None,
@@ -1499,7 +1474,6 @@ mod tests {
                 JSONRPCMessage::Response(JSONRPCResponse {
                     id: request.id,
                     result: serde_json::to_value(GetAccountResponse {
-                        user_id: None,
                         workspace_routing: None,
                         account: None,
                         requires_openai_auth: false,
@@ -1556,7 +1530,6 @@ mod tests {
                 JSONRPCMessage::Response(JSONRPCResponse {
                     id: request.id,
                     result: serde_json::to_value(GetAccountResponse {
-                        user_id: None,
                         workspace_routing: None,
                         account: None,
                         requires_openai_auth: false,
@@ -1635,7 +1608,6 @@ mod tests {
         assert_eq!(
             response,
             GetAccountResponse {
-                user_id: None,
                 workspace_routing: None,
                 account: None,
                 requires_openai_auth: false,
@@ -1742,7 +1714,6 @@ mod tests {
                 JSONRPCMessage::Response(JSONRPCResponse {
                     id: request.id,
                     result: serde_json::to_value(GetAccountResponse {
-                        user_id: None,
                         workspace_routing: None,
                         account: None,
                         requires_openai_auth: false,
@@ -1797,7 +1768,6 @@ mod tests {
         assert_eq!(
             first_response,
             GetAccountResponse {
-                user_id: None,
                 workspace_routing: None,
                 account: None,
                 requires_openai_auth: false,

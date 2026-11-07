@@ -11,17 +11,6 @@
       ],
       "type": "string"
     },
-    "AgentMessageModeration": {
-      "properties": {
-        "moderated": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "moderated"
-      ],
-      "type": "object"
-    },
     "AsyncUserInputQuestion": {
       "additionalProperties": false,
       "properties": {
@@ -1095,17 +1084,6 @@
               "anyOf": [
                 {
                   "$ref": "#/definitions/MemoryCitation"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "default": null
-            },
-            "moderation": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/AgentMessageModeration"
                 },
                 {
                   "type": "null"
