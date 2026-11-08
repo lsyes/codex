@@ -79,6 +79,12 @@ TARGET_SPECS: dict[str, TargetSpec] = {
         is_linux=True,
         dotslash_platform="linux-x86_64",
     ),
+    "loongarch64-unknown-linux-gnu": TargetSpec(
+        target="loongarch64-unknown-linux-gnu",
+        is_windows=False,
+        is_linux=True,
+        dotslash_platform="linux-loongarch64",
+    ),
     "aarch64-unknown-linux-gnu": TargetSpec(
         target="aarch64-unknown-linux-gnu",
         is_windows=False,
@@ -123,6 +129,7 @@ HOST_RELEASE_TARGETS: dict[tuple[str, str], str] = {
     ("darwin", "x86_64"): "x86_64-apple-darwin",
     ("linux", "aarch64"): "aarch64-unknown-linux-musl",
     ("linux", "x86_64"): "x86_64-unknown-linux-musl",
+    ("linux", "loongarch64"): "loongarch64-unknown-linux-gnu",
     ("windows", "aarch64"): "aarch64-pc-windows-msvc",
     ("windows", "x86_64"): "x86_64-pc-windows-msvc",
 }
@@ -167,4 +174,6 @@ def normalize_machine(machine: str) -> str:
         return "x86_64"
     if machine in ("aarch64", "arm64"):
         return "aarch64"
+    if machine in ("loongarch64", "loong64", "la64"):
+        return "loongarch64"
     return machine

@@ -28,11 +28,11 @@ pub(crate) fn daemon_socket_mask_paths(
     let directory_file = fs::File::open(directory)?;
     let device = directory_file.metadata()?.dev();
     let filesystem =
-        if fstatfs(&directory_file).is_ok_and(|stat| stat.f_type == libc::BTRFS_SUPER_MAGIC) {
-            SocketFilesystem::Btrfs
-        } else {
-            SocketFilesystem::Other
-        };
+    if fstatfs(&directory_file).is_ok_and(|stat| stat.f_type as u64 == libc::BTRFS_SUPER_MAGIC as u64) {
+        SocketFilesystem::Btrfs
+    } else {
+        SocketFilesystem::Other
+    };
     let mount_id = fs::read_to_string(format!("/proc/self/fdinfo/{}", directory_file.as_raw_fd()))
         .ok()
         .and_then(|fdinfo| {

@@ -98,9 +98,14 @@ Cargo and sets `RUSTY_V8_ARCHIVE` plus `RUSTY_V8_SRC_BINDING_PATH` for that
 build. Windows targets keep Cargo's release-build MSVC artifact path. Explicit
 overrides remain authoritative when both variables are already set. Set
 `V8_FROM_SOURCE=1` to leave the build with the `v8` crate source-build path.
+Set `RUSTY_V8_MIRROR` to a release-download base when the target has no
+Codex-built pair; the `v8` crate then resolves its feature-qualified archive
+and binding from that mirror. Set `RUSTY_V8_MIRROR_TAG` if the mirror uses a
+tag other than `v<crate_version>`.
 
 `rg` is not built from this repository, so the builder fetches it from the
 DotSlash manifest at `scripts/codex_package/rg`. Downloaded archives are cached
 under `$TMPDIR/codex-package/<target>-rg` and are reused only after the recorded
 size and SHA-256 digest have been verified. Pass `--rg-bin` to use a local
-ripgrep executable instead.
+ripgrep executable instead. If the manifest has no artifact for a target, the
+builder uses a compatible `rg` from `PATH` and prints a warning.

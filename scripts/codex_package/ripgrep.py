@@ -1,8 +1,9 @@
 """Fetch ripgrep from the DotSlash manifest used by the package builder."""
 
+import shutil
 from pathlib import Path
 
-from .dotslash import fetch_dotslash_executable
+from .dotslash import fetch_dotslash_executable, load_manifest
 from .targets import TargetSpec, resolve_input_path
 
 RG_MANIFEST = Path(__file__).with_name("rg")
@@ -20,6 +21,22 @@ def fetch_rg(
     *,
     manifest_path: Path = RG_MANIFEST,
 ) -> Path:
+    manifest = load_manifest(manifest_path)
+    if spec.dotslash_platform not in manifest.get("platforms", {}):
+        system_rg = shutil.which(spec.rg_name)
+        if system_rg is not None:
+            rg_bin = Path(system_rg).resolve()
+            print(
+                f"ripgrep manifest {manifest_path} has no "
+                f"{spec.dotslash_platform!r} artifact; using {rg_bin} from PATH."
+            )
+            return rg_bin
+        raise RuntimeError(
+            f"ripgrep manifest {manifest_path} has no "
+            f"{spec.dotslash_platform!r} artifact and {spec.rg_name!r} "
+            "is not on PATH; pass --rg-bin with a compatible executable."
+        )
+
     rg_bin = fetch_dotslash_executable(
         spec,
         manifest_path=manifest_path,

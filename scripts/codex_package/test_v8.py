@@ -289,6 +289,7 @@ class FetchCodexV8ArtifactsTest(unittest.TestCase):
         spec = TARGET_SPECS["x86_64-unknown-linux-gnu"]
         for environ in (
             {"V8_FROM_SOURCE": "1"},
+            {"RUSTY_V8_MIRROR": "https://mirror.example/releases/download"},
             {
                 "RUSTY_V8_ARCHIVE": "archive.a",
                 "RUSTY_V8_SRC_BINDING_PATH": "binding.rs",

@@ -8,7 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut config = tonic_prost_build::Config::new();
     let protoc = match std::env::var_os("PROTOC") {
         Some(path) => PathBuf::from(path),
-        None => protoc_bin_vendored::protoc_bin_path()?,
+        None => PathBuf::from("protoc"),
     };
     config.protoc_executable(protoc);
     let proto_files = glob::glob("src/grpc/*.proto")?.collect::<Result<Vec<_>, _>>()?;

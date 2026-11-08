@@ -42,6 +42,12 @@ def resolve_codex_v8_cargo_env(
             "Cargo package builds need RUSTY_V8_ARCHIVE and RUSTY_V8_SRC_BINDING_PATH set together."
         )
 
+    # The v8 crate knows how to resolve the feature-qualified archive and
+    # binding from a mirror. Delegate to it instead of looking for Codex's
+    # official release assets, which do not cover every host architecture.
+    if environ.get("RUSTY_V8_MIRROR"):
+        return {}
+
     artifacts = fetch_codex_v8_artifacts(spec, cache_root=cache_root)
     return {
         "RUSTY_V8_ARCHIVE": str(artifacts.archive),
